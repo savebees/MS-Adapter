@@ -21,7 +21,7 @@ from tqdm import tqdm
 
 import models  # noqa
 from datasets.dataset import DeepFakeClassifierDataset_test
-from models.xception_ff import xception
+from models.xception import xception
 from tools.config import load_config
 from tools.env import init_dist
 

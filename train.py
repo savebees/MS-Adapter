@@ -526,7 +526,7 @@ def main_worker(gpu, args, cfg):
             print("validation:", len(val_dataset))
         val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=128, shuffle=True, num_workers=4)
 
-    # fine-tuning configs
+    # ======== fine-tuning configs ========
     if cfg["finetuning"]["method_name"] == "bottleneck":
         tuning_config = EasyDict(
             # AdaptFormer

@@ -1,28 +1,28 @@
-EXPID='replace <your checkpoint log id>'
+EXPID='log20250119_013251'
 
 HOST='127.0.0.1'
-PORT='3'
+PORT='5'
 
 NUM_GPU=1
 
 tests=("youtube_Deepfakes" "youtube_FaceSwap" "youtube_Face2Face" "youtube_NeuralTextures")
 
 
-YOUR_DATA_PATH="<replace your data path>"
-YOUR_RESULT_PATH="<replace your result path>"
+YOUR_DATA_PATH="./data"
+YOUR_RESULT_PATH="./results"
 
 
 for test in "${tests[@]}"
 do
     echo "Testing on ${test}..."
-    CUDA_VISIBLE_DEVICES="0" python test.py \
+    CUDA_VISIBLE_DEVICES="1" python test.py \
         --config 'configs/bottleneck_vit_base_patch16_224_spatial.json' \
         --results_path ${YOUR_RESULT_PATH} \
         --test_level 'frame' \
         --data_dir "${YOUR_DATA_PATH}/FaceForensicspp_RECCE" \
-        --dataset_name 'FaceForensicspp_RECCE_c23' \
-        --dataset_split 'alltype' \
-        --test_dataset_name 'FaceForensicspp_RECCE_c23' \
+        --dataset_name 'FaceForensicspp_RECCE_c40' \
+        --dataset_split 'youtube_Deepfakes' \
+        --test_dataset_name 'FaceForensicspp_RECCE_40' \
         --test_dataset_split ${test} \
         --launcher pytorch \
         --rank 0 \

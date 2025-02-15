@@ -1,12 +1,12 @@
 EXPID=$(date +"%Y%m%d_%H%M%S")
 
 HOST='127.0.0.1'
-PORT='2'
+PORT='9'
 
 NUM_GPU=1
 
-YOUR_DATA_PATH="<replace your data path>"
-YOUR_RESULT_PATH="<replace your result path>"
+YOUR_DATA_PATH="./data"
+YOUR_RESULT_PATH="./results"
 
 
 CUDA_VISIBLE_DEVICES="0" python train.py \
@@ -15,7 +15,7 @@ CUDA_VISIBLE_DEVICES="0" python train.py \
     --data_dir "${YOUR_DATA_PATH}/FaceForensicspp_RECCE" \
     --dataset_name 'FaceForensicspp_RECCE_c23' \
     --dataset_split 'youtube_FaceSwap' \
-    --test_dataset_name 'youtube_FaceSwap' \
+    --test_dataset_name 'youtube_Deepfakes youtube_FaceSwap' \
     --launcher pytorch \
     --rank 0 \
     --log_num ${EXPID} \
