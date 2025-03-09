@@ -2,3 +2,4 @@ __pycache__/**
 *.pyc
 pre_trained/**
 results/
+pre_trained/
