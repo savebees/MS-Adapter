@@ -1,4 +1,4 @@
-EXPID='log20250116_235401'
+EXPID='log20250119_013251'
 
 HOST='127.0.0.1'
 PORT='5'
@@ -20,9 +20,9 @@ do
         --results_path ${YOUR_RESULT_PATH} \
         --test_level 'frame' \
         --data_dir "${YOUR_DATA_PATH}/FaceForensicspp_RECCE" \
-        --dataset_name 'FaceForensicspp_RECCE_c23' \
-        --dataset_split 'youtube_NeuralTextures' \
-        --test_dataset_name 'FaceForensicspp_RECCE_c23' \
+        --dataset_name 'FaceForensicspp_RECCE_c40' \
+        --dataset_split 'alltype' \
+        --test_dataset_name 'FaceForensicspp_RECCE_c40' \
         --test_dataset_split ${test} \
         --launcher pytorch \
         --rank 0 \
