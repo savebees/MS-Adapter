@@ -13,7 +13,7 @@ CUDA_VISIBLE_DEVICES="0,1" python train.py \
     --config 'configs/bottleneck_vit_base_patch16_224_spatial.json' \
     --data_dir "${YOUR_DATA_PATH}/FaceForensicspp_RECCE" \
     --dataset_name 'FaceForensicspp_RECCE_c23' \
-    --dataset_split 'DF+FS' \
+    --dataset_split 'alltype' \
     --test_dataset_name 'youtube_Deepfakes youtube_Face2Face youtube_FaceSwap youtube_NeuralTextures' \
     --launcher pytorch \
     --rank 0 \

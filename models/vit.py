@@ -17,7 +17,7 @@ from timm.models.vision_transformer import PatchEmbed
 from torch.nn.init import normal_
 
 from .adapter import Adapter
-from .spatialprior import InteractionBlock, SpatialPriorModule
+from .spatialprior import InteractionBlock, SpatialPriorModule, MS_SpatialPriorModule
 
 
 class Mlp(nn.Module):
@@ -425,7 +425,7 @@ class VisionTransformer_spatial(nn.Module):
             )
 
         self.level_embed = nn.Parameter(torch.zeros(3, embed_dim))
-        self.spm = SpatialPriorModule(embed_dim=embed_dim)
+        self.spm = MS_SpatialPriorModule(embed_dim=embed_dim)
 
         self.interactions = nn.Sequential(
             *[
@@ -517,9 +517,9 @@ class VisionTransformer_spatial(nn.Module):
 
     def forward_features(self, x):
         # SPM forward
-        c2, c3, c4 = self.spm(x)
-        c2, c3, c4 = self._add_level_embed(c2, c3, c4)
-        c = torch.cat([c2, c3, c4], dim=1)
+        c_low, c_mid, c_high = self.spm(x)
+        c_low, c_mid, c_high = self._add_level_embed(c_low, c_mid, c_high)
+        c = torch.cat([c_low, c_mid, c_high], dim=1)
 
         B = x.shape[0]
         # x = self.patch_embed(x)

@@ -116,3 +116,60 @@ class InteractionBlock(nn.Module):
         c = self.extractor(query=c, feat=x)
 
         return x, c
+
+
+
+class MS_SpatialPriorModule(nn.Module):
+    def __init__(self, inplanes=64, embed_dim=768):
+        super().__init__()
+
+        self.embed_dim = embed_dim
+
+        # low-level
+        self.stem_low = nn.Sequential(
+            nn.Conv2d(3, inplanes, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.SyncBatchNorm(inplanes),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(inplanes, inplanes, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.SyncBatchNorm(inplanes),
+            nn.ReLU(inplace=True),
+        )
+        self.fc_low = nn.Conv2d(inplanes, embed_dim, kernel_size=1)
+
+        # mid-level
+        self.stem_mid = nn.Sequential(
+            nn.Conv2d(3, inplanes*2, kernel_size=5, stride=2, padding=2, bias=False),
+            nn.SyncBatchNorm(inplanes*2),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(inplanes*2, inplanes*2, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.SyncBatchNorm(inplanes*2),
+            nn.ReLU(inplace=True),
+        )
+        self.fc_mid = nn.Conv2d(inplanes*2, embed_dim, kernel_size=1)
+
+        # high-level
+        self.stem_high = nn.Sequential(
+            nn.Conv2d(3, inplanes*4, kernel_size=7, stride=2, padding=3, bias=False),
+            nn.SyncBatchNorm(inplanes*4),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(inplanes*4, inplanes*4, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.SyncBatchNorm(inplanes*4),
+            nn.ReLU(inplace=True),
+        )
+        self.fc_high = nn.Conv2d(inplanes*4, embed_dim, kernel_size=1)
+
+    def forward(self, x):
+        bs = x.shape[0]
+        c_low = self.fc_low(self.stem_low(x))
+        c_mid = self.fc_mid(self.stem_mid(x))
+        c_high = self.fc_high(self.stem_high(x))
+
+        # reshape
+        c_low = c_low.view(bs, self.embed_dim, -1).transpose(1, 2)
+        c_mid = c_mid.view(bs, self.embed_dim, -1).transpose(1, 2)
+        c_high = c_high.view(bs, self.embed_dim, -1).transpose(1, 2)
+
+        return c_low, c_mid, c_high
