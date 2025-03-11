@@ -3,3 +3,4 @@ __pycache__/**
 pre_trained/**
 results/
 pre_trained/
+data/
