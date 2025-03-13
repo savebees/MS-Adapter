@@ -18,7 +18,7 @@
         "blr": 0.1,
         "min_lr": 0,
         "warmup_epochs": 15,
-        "epochs": 100,
+        "epochs": 50,
         "scheduler": "cosine",
         "criterion": "CrossEntropyLoss"
     },

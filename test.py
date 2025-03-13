@@ -24,6 +24,8 @@ from datasets.dataset import DeepFakeClassifierDataset_test
 from models.xception import xception
 from tools.config import load_config
 from tools.env import init_dist
+import torch.multiprocessing as mp
+import torch.distributed as dist
 
 
 def set_random_seed(seed, deterministic=False):
@@ -109,14 +111,18 @@ def preset_model(args, cfg, model, logger):
     if args.ckpt == "best_model.pt":
         model.load_state_dict(checkpoint["best_state_dict"])
         model.cuda(args.gpu)
+        if args.launcher != "none":
+            model = torch.nn.parallel.DistributedDataParallel(
+                model, device_ids=[args.gpu], find_unused_parameters=True)
         best_val_acc = checkpoint["best_val_auc"]
         if args.log:
             logger.info(f"Loading model from {checkpoint_dir}...")
             logger.info(f"best_val_auc: {best_val_acc}...")
     else:
         model.load_state_dict(checkpoint["state_dict"])
-        model.cuda(args.gpu)
-
+        if args.launcher != "none":
+            model = torch.nn.parallel.DistributedDataParallel(
+                model, device_ids=[args.gpu], find_unused_parameters=True)
         logger.info(f"Loading model from {checkpoint_dir}...")
     return model
 
@@ -273,7 +279,7 @@ def main_worker(gpu, args, cfg):
     if args.test_level == "video":
         test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8)
     if args.test_level == "frame":
-        test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=8)
+        test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=8)
 
     if cfg["network"].startswith("vit"):
         # fine-tuning configs
@@ -474,4 +480,11 @@ if __name__ == "__main__":
     set_random_seed(args.manual_seed)
     cfg = load_config(args.config)
 
-    main_worker(0, args, cfg)
+    #main_worker(0, args, cfg)
+
+    if args.launcher == "none":
+        main_worker(0, args, cfg)
+    else:
+        ngpus_per_node = torch.cuda.device_count()
+        args.ngpus_per_node = ngpus_per_node
+        mp.spawn(main_worker, nprocs=ngpus_per_node, args=(args, cfg))
