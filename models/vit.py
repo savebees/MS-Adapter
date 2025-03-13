@@ -516,23 +516,26 @@ class VisionTransformer_spatial(nn.Module):
         return c2, c3, c4
 
     def forward_features(self, x):
-        # SPM forward
-        c_low, c_mid, c_high = self.spm(x)
-        c_low, c_mid, c_high = self._add_level_embed(c_low, c_mid, c_high)
-        c = torch.cat([c_low, c_mid, c_high], dim=1)
+        c_low, c_mid, c_high = self.spm(x)  
 
         B = x.shape[0]
-        # x = self.patch_embed(x)
         x = self.patch_embed(x)
 
-        cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
+        cls_tokens = self.cls_token.expand(B, -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
         x = x + self.pos_embed
         x = self.pos_drop(x)
 
-        # Interaction
         for i, layer in enumerate(self.interactions):
             indexes = self.interaction_indexes[i]
+
+            if i == 0:
+                c = c_low  # Stag1
+            elif i == 1:
+                c = c_mid  # Stage2
+            else:
+                c = c_high # Stage3
+
             x, c = layer(x, c, self.blocks[indexes[0] : indexes[-1] + 1])
 
         x = self.norm(c)
