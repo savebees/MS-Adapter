@@ -474,6 +474,13 @@ class VisionTransformer_spatial(nn.Module):
         # Classifier head(s)
         self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
 
+        # MIM Decoder
+        self.decoder = nn.Sequential(
+            nn.Linear(embed_dim, embed_dim),
+            nn.GELU(),
+            nn.Linear(embed_dim, patch_size * patch_size * 3),
+        )
+
         # self.init_weights(weight_init)
 
         ######## Adapter begins #########
@@ -515,7 +522,7 @@ class VisionTransformer_spatial(nn.Module):
         c4 = c4 + self.level_embed[2]
         return c2, c3, c4
 
-    def forward_features(self, x):
+    def forward_features(self, x, reconstruction=False):
         c_low, c_mid, c_high = self.spm(x)  
 
         B = x.shape[0]
@@ -541,14 +548,23 @@ class VisionTransformer_spatial(nn.Module):
         x = self.norm(c)
         outcome = x[:, 0]
 
-        return outcome
+        # MIM recon
+        if reconstruction:
+            reconstruction = self.decoder(x)  # [B, N, patch_size*patch_size*3]
+            return outcome, reconstruction
+        else:
+            return outcome
 
-    def forward(self, x):
-        x = self.forward_features(
-            x,
-        )
-        x = self.head(x)
-        return x
+    def forward(self, x, reconstruction=False):
+        x = self.forward_features(x) 
+
+        logits = self.head(x)  
+
+        if reconstruction:
+            reconstructions = self.decoder(x)  
+            return logits, reconstructions
+        else:
+            return logits
 
 
 @register_model

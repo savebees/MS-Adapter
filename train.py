@@ -17,6 +17,7 @@ import torch.backends.cudnn
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 import torch.utils.data
 from easydict import EasyDict
 from scipy.interpolate import interp1d
@@ -87,6 +88,12 @@ def set_random_seed(seed, deterministic=False):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
+def random_mask(images, mask_ratio=0.15):
+    batch_size, channels, height, width = images.shape
+    mask = torch.rand(batch_size, 1, height, width, device=images.device) < mask_ratio
+    mask = mask.float()
+    masked_images = images * (1 - mask)
+    return masked_images, mask
 
 def mkdir(path):
     if not os.path.exists(path):
@@ -277,10 +284,18 @@ def train(
 
             if images.shape[0] < 2:
                 continue
+            
+            # random masked 
+            masked_images, masks = random_mask(images, mask_ratio=0.15)
 
             with torch.cuda.amp.autocast():
                 outputs = model(images)
-                loss = criterion(outputs, labels)
+                cls_loss = criterion(outputs, labels)
+
+                _, reconstructed_images = model(masked_images, reconstruction=True)
+                recon_loss = F.mse_loss(reconstructed_images * masks, images * masks)
+
+                loss = cls_loss +  recon_loss
 
             if not math.isfinite(loss):
                 if args.log:
