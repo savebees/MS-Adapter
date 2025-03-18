@@ -105,12 +105,14 @@ class DeepFakeClassifierDataset(Dataset):
         cfg,
         data_path=None,
         mode="train",
+        clip_len=16,
     ):
         super().__init__()
         self.data_root = data_path
         self.cfg = cfg
         self.mode = mode
         self.label_smoothing = 0.01
+        self.clip_len = clip_len
 
         self.albu = args.albu
 
@@ -122,7 +124,7 @@ class DeepFakeClassifierDataset(Dataset):
             else:
                 self.data = make_dataset(
                     os.path.join(
-                        data_path,
+                        data_path, 
                         args.dataset_name,
                         "image_lists",
                         f"{mode}",
@@ -160,6 +162,31 @@ class DeepFakeClassifierDataset(Dataset):
     def __getitem__(self, index: int):
         img_path, label = self.data[index]
 
+        folder = os.path.dirname(img_path)
+        frame_files = sorted([f for f in os.listdir(folder) if f.lower().endswith(('.jpg', '.png'))])
+
+        if len(frame_files) >= self.clip_len:
+            start = random.randint(0, len(frame_files) - self.clip_len)
+            clip_files = frame_files[start : start + self.clip_len]
+        else:
+            clip_files = frame_files + [frame_files[-1]] * (self.clip_len - len(frame_files))
+        
+        clip = []
+        for f in clip_files:
+            full_path = os.path.join(folder, f)
+            if self.albu and self.mode.startswith("train"):
+                image = cv2.imread(full_path, cv2.IMREAD_COLOR)
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                data = self.transforms(image=image)
+                image = data["image"]
+                image = img_to_tensor(image, self.cfg["normalize"])
+            else:
+                image = Image.open(full_path).convert("RGB")
+                if self.transforms:
+                    image = self.transforms(image)
+            clip.append(image)
+
+        '''
         if self.albu and self.mode.startswith("train"):
             image = cv2.imread(img_path, cv2.IMREAD_COLOR)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -172,8 +199,11 @@ class DeepFakeClassifierDataset(Dataset):
             image = Image.open(img_path).convert("RGB")
             if self.transforms:
                 image = self.transforms(image)
+        '''
 
-        return image, np.array((label,))
+        clip = torch.stack(clip, dim=0)
+        #return image, np.array((label,))
+        return clip, np.array((label,))
 
     def __len__(self):
         return len(self.data)
