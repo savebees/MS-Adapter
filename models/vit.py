@@ -20,6 +20,23 @@ from .adapter import Adapter
 from .spatialprior import InteractionBlock, SpatialPriorModule, MS_SpatialPriorModule
 
 
+class TemporalTransformer(nn.Module):
+    def __init__(self, embed_dim, num_heads=8, depth=2):
+        super(TemporalTransformer, self).__init__()
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=embed_dim,
+            nhead=num_heads,
+            batch_first=True  # (B, T, embed_dim)
+        )
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=depth)
+
+    def forward(self, x):
+        # x: (B, T, embed_dim)
+        out = self.encoder(x)  # (B, T, embed_dim)
+        video_feature = out.mean(dim=1)  # (B, embed_dim)
+        return video_feature
+
+
 class Mlp(nn.Module):
     """MLP as used in Vision Transformer, MLP-Mixer and related networks"""
 
@@ -476,6 +493,8 @@ class VisionTransformer_spatial(nn.Module):
 
         # self.init_weights(weight_init)
 
+        self.temporal_transformer = TemporalTransformer(embed_dim=self.embed_dim, num_heads=8, depth=2)
+
         ######## Adapter begins #########
         if tuning_config.vpt_on:
             assert tuning_config.vpt_num > 0, tuning_config.vpt_num
@@ -516,37 +535,49 @@ class VisionTransformer_spatial(nn.Module):
         return c2, c3, c4
 
     def forward_features(self, x):
-        c_low, c_mid, c_high = self.spm(x)  
-
-        B = x.shape[0]
-        x = self.patch_embed(x)
-
-        cls_tokens = self.cls_token.expand(B, -1, -1)
-        x = torch.cat((cls_tokens, x), dim=1)
-        x = x + self.pos_embed
-        x = self.pos_drop(x)
-
+        """
+        输入 x 形状为 (B, T, C, H, W) 或 (B, C, H, W)
+        如果是4维，则自动扩展成 (B, 1, C, H, W)。
+        1. 将时间维度与 batch 合并，对每一帧单独提取空间特征。
+        2. 恢复时间维度后，利用 TemporalTransformer 聚合时序信息，输出 (B, embed_dim)
+        """
+        # 如果输入是4D，则增加时间维度 T=1
+        if x.dim() == 4:
+            x = x.unsqueeze(1)  # 变成 (B, 1, C, H, W)
+        B, T, C, H, W = x.shape
+        # 合并时间和 batch 维度，得到 (B*T, C, H, W)
+        x_ = x.view(B * T, C, H, W)
+        
+        # 经过 spatial prior 模块和 patch_embed 提取空间特征（保持原来的流程）
+        c_low, c_mid, c_high = self.spm(x_)
+        x_patch = self.patch_embed(x_)  # (B*T, num_patches, embed_dim)
+        cls_tokens = self.cls_token.expand(B * T, -1, -1)
+        x_patch = torch.cat((cls_tokens, x_patch), dim=1)
+        x_patch = x_patch + self.pos_embed
+        x_patch = self.pos_drop(x_patch)
+        
         for i, layer in enumerate(self.interactions):
             indexes = self.interaction_indexes[i]
-
             if i == 0:
-                c = c_low  # Stag1
+                c = c_low  # Stage1
             elif i == 1:
                 c = c_mid  # Stage2
             else:
-                c = c_high # Stage3
-
-            x, c = layer(x, c, self.blocks[indexes[0] : indexes[-1] + 1])
-
-        x = self.norm(c)
-        outcome = x[:, 0]
-
+                c = c_high  # Stage3
+            x_patch, c = layer(x_patch, c, self.blocks[indexes[0] : indexes[-1] + 1])
+        
+        x_patch = self.norm(c)
+        # 提取每帧的 cls token 特征，形状 (B*T, embed_dim)
+        per_frame_feat = x_patch[:, 0]
+        # 恢复时间维度：变为 (B, T, embed_dim)
+        per_frame_feat = per_frame_feat.view(B, T, self.embed_dim)
+        
+        # 利用 TemporalTransformer 聚合时间信息，输出 (B, embed_dim)
+        outcome = self.temporal_transformer(per_frame_feat)
         return outcome
 
     def forward(self, x):
-        x = self.forward_features(
-            x,
-        )
+        x = self.forward_features(x)
         x = self.head(x)
         return x
 
